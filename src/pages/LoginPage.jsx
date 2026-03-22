@@ -1,42 +1,54 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import LanguageSwitch from '../components/LanguageSwitch.jsx';
+import { useI18n } from '../i18n/I18nContext.jsx';
 import { loginWithCredentials } from '../services/api';
-import { setSessionFromLogin, getStoredToken } from '../services/storage';
+import {
+  setSessionFromLogin,
+  hasAuthSession,
+  getRememberedLoginId,
+} from '../services/storage';
 
 export default function LoginPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
 
-  const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [emailOrPhone, setEmailOrPhone] = useState(() => getRememberedLoginId());
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (getStoredToken()) navigate(from, { replace: true });
+    if (hasAuthSession()) navigate(from, { replace: true });
   }, [from, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!emailOrPhone.trim() || !password) {
-      toast.error('Nhập email/số điện thoại và mật khẩu');
+      toast.error(t('login.error.credentials'));
       return;
     }
     setSubmitting(true);
     try {
       const data = await loginWithCredentials(emailOrPhone.trim(), password);
-      setSessionFromLogin(data);
-      toast.success('Đăng nhập thành công');
+      const saved = setSessionFromLogin(data, { remember: rememberMe });
+      if (!saved.ok) {
+        toast.error(saved.message);
+        return;
+      }
+      toast.success(t('login.success'));
       navigate(from, { replace: true });
     } catch (err) {
+      const serverMsg = err.response?.data?.message || err.response?.data?.error;
       const msg =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
+        serverMsg ||
         (err.response?.status === 401 || err.response?.status === 403
-          ? 'Sai thông tin đăng nhập hoặc không có quyền'
-          : err.message || 'Đăng nhập thất bại');
+          ? t('login.error.auth')
+          : err.message || t('login.error.generic'));
       toast.error(String(msg));
     } finally {
       setSubmitting(false);
@@ -44,22 +56,29 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
+    <div className="relative flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
+      <div className="absolute right-4 top-4 z-10">
+        <LanguageSwitch />
+      </div>
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-md sm:p-8">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600 text-xl font-bold text-white">
-            DM
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl">
+            <img
+              src="/assets/images/logo/GOADS_logo_icon.png"
+              alt=""
+              width={56}
+              height={56}
+              className="h-14 w-14 object-contain"
+            />
           </div>
-          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
-            Device Management System
-          </h1>
-          <p className="mt-2 text-sm text-gray-500">Đăng nhập bằng tài khoản GOADS Driver</p>
+          <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">{t('app.title')}</h1>
+          <p className="mt-2 text-sm text-gray-500">{t('login.subtitle')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email-phone" className="mb-1 block text-sm font-medium text-gray-700">
-              Email / Số điện thoại
+              {t('login.emailLabel')}
             </label>
             <input
               id="email-phone"
@@ -68,12 +87,12 @@ export default function LoginPage() {
               value={emailOrPhone}
               onChange={(e) => setEmailOrPhone(e.target.value)}
               className="min-h-[44px] w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-              placeholder="driver@example.com"
+              placeholder="ledscreen@goads.vn"
             />
           </div>
           <div>
             <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
-              Mật khẩu
+              {t('login.passwordLabel')}
             </label>
             <div className="relative">
               <input
@@ -89,7 +108,7 @@ export default function LoginPage() {
                 tabIndex={-1}
                 onClick={() => setShowPassword((v) => !v)}
                 className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                aria-label={showPassword ? t('login.showPassword.hide') : t('login.showPassword.show')}
               >
                 {showPassword ? (
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,20 +138,23 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+          <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>{t('login.remember')}</span>
+          </label>
           <button
             type="submit"
             disabled={submitting}
             className="min-h-[44px] w-full rounded-lg bg-blue-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
           >
-            {submitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
+            {submitting ? t('login.submitting') : t('login.submit')}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-xs text-gray-400">
-          API: <code className="rounded bg-gray-100 px-1">POST /api/user/login</code> — đặt biến{' '}
-          <code className="rounded bg-gray-100 px-1">VITE_MAIN_SERVER</code> trong file{' '}
-          <code className="rounded bg-gray-100 px-1">.env</code>
-        </p>
       </div>
     </div>
   );
