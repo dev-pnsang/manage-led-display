@@ -15,7 +15,7 @@ export const api = axios.create({
 
 function authHeaderValue() {
   const token = getStoredToken();
-  if (!token) return null;
+  if (token == null || String(token).trim() === '') return null;
   if (getAuthHeaderMode() === 'bearer') {
     return token.toLowerCase().startsWith('bearer ')
       ? token
