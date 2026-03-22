@@ -1,8 +1,10 @@
+import { t } from '../i18n';
+
 function normalizeServerEntry(d) {
   const ip = d.ip || d.IP || null;
   return {
     id: String(d.id ?? ip ?? `dev_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
-    name: d.name || d.hostname || ip || 'Thiết bị',
+    name: d.name || d.hostname || ip || t('device.genericName'),
     ip,
     control_url:
       d.control_url ||
