@@ -8,9 +8,12 @@ import {
 } from 'react';
 import toast from 'react-hot-toast';
 import { fetchDevicesFromServer } from '../services/api';
+import { t } from '../i18n';
+import { getResolvedScanSubnets } from '../services/localNetwork.js';
 import {
   getLanDevicesCache,
   getUserData,
+  hasAuthSession,
   setLanDevicesCache,
 } from '../services/storage';
 import { scanSubnet } from '../services/lanScan';
@@ -29,8 +32,11 @@ export function DevicesProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [initialDiscoveryComplete, setInitialDiscoveryComplete] = useState(false);
 
   const buildMergedList = useCallback(async () => {
+    if (!hasAuthSession()) return;
+
     const user = getUserData();
     const fromLogin = devicesFromLoginUser(user);
     const lanCached = getLanDevicesCache();
@@ -38,6 +44,7 @@ export function DevicesProvider({ children }) {
     let fromApi = [];
     try {
       const { skipped, data } = await fetchDevicesFromServer();
+      if (!hasAuthSession()) return;
       if (!skipped && Array.isArray(data) && data.length > 0) {
         fromApi = normalizeDevicesApiResponse(data);
       }
@@ -45,49 +52,84 @@ export function DevicesProvider({ children }) {
       /* Backend có thể chưa có GET /api/devices */
     }
 
+    if (!hasAuthSession()) return;
+
     const base =
       fromApi.length > 0
         ? mergeDeviceLists(fromApi, lanCached)
         : mergeDeviceLists(fromLogin, lanCached);
+
+    if (!hasAuthSession()) return;
 
     setDevices(base);
     setLastUpdated(new Date());
   }, []);
 
   const refresh = useCallback(async () => {
+    if (!hasAuthSession()) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       await buildMergedList();
     } catch (e) {
-      toast.error(e?.message || 'Không tải được danh sách thiết bị');
+      if (hasAuthSession()) {
+        toast.error(e?.message || t('toast.loadDevicesFailed'));
+      }
     } finally {
       setLoading(false);
     }
   }, [buildMergedList]);
 
-  useEffect(() => {
-    refresh();
-    const id = window.setInterval(() => {
-      buildMergedList().catch(() => {});
-    }, POLL_MS);
-    return () => window.clearInterval(id);
-  }, [buildMergedList, refresh]);
+  const runLanScanSubnets = useCallback(
+    async (subnetPrefixes, options = {}) => {
+      const { quiet = false } = options;
+      const canRun = () => hasAuthSession();
 
-  const runLanScan = useCallback(
-    async (subnetPrefix) => {
+      if (!canRun()) {
+        return { totalFound: 0, aborted: true };
+      }
+
+      const list = [
+        ...new Set(
+          subnetPrefixes
+            .map((s) => String(s).replace(/\.$/, '').trim())
+            .filter((s) => /^\d{1,3}(\.\d{1,3}){2}$/.test(s))
+        ),
+      ];
+      if (list.length === 0) {
+        if (!quiet) toast.error(t('toast.networkUnknown'));
+        return { totalFound: 0 };
+      }
       setScanning(true);
       try {
-        const found = await scanSubnet(subnetPrefix);
-        if (found.length === 0) {
-          toast('Không tìm thấy thiết bị nào', { icon: 'ℹ️' });
-        } else {
-          toast.success(`Tìm thấy ${found.length} thiết bị`);
+        let totalFound = 0;
+        let prev = getLanDevicesCache();
+        for (const prefix of list) {
+          if (!canRun()) break;
+          const found = await scanSubnet(prefix, { shouldContinue: canRun });
+          totalFound += found.length;
+          if (!canRun()) break;
+          prev = mergeDeviceLists(prev, found);
+          setLanDevicesCache(prev);
         }
-        const prev = getLanDevicesCache();
-        setLanDevicesCache(mergeDeviceLists(prev, found));
-        await buildMergedList();
+        if (canRun()) {
+          await buildMergedList();
+        }
+        if (!quiet && canRun()) {
+          if (totalFound === 0) {
+            toast('Không tìm thấy thiết bị nào', { icon: 'ℹ️' });
+          } else {
+            toast.success(`Tìm thấy ${totalFound} thiết bị`);
+          }
+        }
+        return { totalFound };
       } catch (e) {
-        toast.error(e?.message || 'Quét mạng thất bại');
+        if (!quiet && canRun()) {
+          toast.error(e?.message || t('toast.searchFailed'));
+        }
+        return { totalFound: 0, error: e };
       } finally {
         setScanning(false);
       }
@@ -95,16 +137,58 @@ export function DevicesProvider({ children }) {
     [buildMergedList]
   );
 
+  const runLanScan = useCallback(
+    (subnetPrefix, options) => runLanScanSubnets([subnetPrefix], options),
+    [runLanScanSubnets]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setInitialDiscoveryComplete(false);
+    void (async () => {
+      await refresh();
+      if (cancelled || !hasAuthSession()) return;
+      if (import.meta.env.VITE_AUTO_LAN_SCAN !== 'false') {
+        const subnets = await getResolvedScanSubnets();
+        if (cancelled || !hasAuthSession()) return;
+        await runLanScanSubnets(subnets, { quiet: true });
+      }
+      if (!cancelled && hasAuthSession()) setInitialDiscoveryComplete(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh, runLanScanSubnets]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (!hasAuthSession()) return;
+      buildMergedList().catch(() => {});
+    }, POLL_MS);
+    return () => window.clearInterval(id);
+  }, [buildMergedList]);
+
   const value = useMemo(
     () => ({
       devices,
       loading,
       scanning,
       lastUpdated,
+      initialDiscoveryComplete,
       refresh,
       runLanScan,
+      runLanScanSubnets,
     }),
-    [devices, loading, scanning, lastUpdated, refresh, runLanScan]
+    [
+      devices,
+      loading,
+      scanning,
+      lastUpdated,
+      initialDiscoveryComplete,
+      refresh,
+      runLanScan,
+      runLanScanSubnets,
+    ]
   );
 
   return (
