@@ -1,23 +1,31 @@
 import { Link } from 'react-router-dom';
+import LanguageSwitch from './LanguageSwitch.jsx';
+import { useI18n } from '../i18n/I18nContext.jsx';
 
 export default function Header({ displayName, onLogout }) {
+  const { t } = useI18n();
   return (
     <header className="sticky top-0 z-20 border-b border-gray-200 bg-white shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 md:px-6">
         <Link to="/" className="flex min-w-0 items-center gap-2">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-            DM
-          </span>
-          <span className="hidden truncate text-lg font-semibold text-gray-900 sm:inline">
-            Device Management
+          <img
+            src="/assets/images/logo/GOADS_logo_icon.png"
+            alt=""
+            width={40}
+            height={40}
+            className="h-10 w-10 shrink-0 rounded-lg object-contain"
+          />
+          <span className="hidden max-w-[11rem] truncate text-base font-semibold text-gray-900 sm:inline md:max-w-md md:text-lg lg:max-w-none">
+            {t('app.title')}
           </span>
         </Link>
 
         <div className="flex items-center gap-2 md:gap-4">
           <p className="hidden text-sm text-gray-600 md:block">
-            Xin chào,{' '}
+            {t('header.greeting')}{' '}
             <span className="font-medium text-gray-900">{displayName}</span>
           </p>
+          <LanguageSwitch className="shrink-0" />
           <span
             className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-600 md:hidden"
             aria-hidden
@@ -44,7 +52,7 @@ export default function Header({ displayName, onLogout }) {
                 d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
               />
             </svg>
-            <span className="hidden md:inline">Đăng xuất</span>
+            <span className="hidden md:inline">{t('header.logout')}</span>
           </button>
         </div>
       </div>

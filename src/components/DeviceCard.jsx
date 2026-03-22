@@ -1,6 +1,9 @@
 import { useNavigate } from 'react-router-dom';
+import { useI18n } from '../i18n/I18nContext.jsx';
+import { getDeviceDisplayName } from '../utils/deviceDisplay.js';
 
 export default function DeviceCard({ device }) {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const online = device.online !== false;
 
@@ -25,16 +28,24 @@ export default function DeviceCard({ device }) {
           </svg>
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold text-gray-900">{device.name}</h3>
-          <p className="truncate text-sm text-gray-500">{device.ip || 'Chưa có IP'}</p>
+          <h3 className="truncate font-semibold text-gray-900">
+            {getDeviceDisplayName(device)}
+          </h3>
+          {device.serial ? (
+            <p className="truncate text-sm text-gray-500">Serial: {device.serial}</p>
+          ) : (
+            <p className="truncate text-sm text-gray-500">Màn hình LED</p>
+          )}
           <div className="mt-2 flex items-center gap-2 text-sm">
             <span
               className={`h-2.5 w-2.5 shrink-0 rounded-full ${
                 online ? 'bg-green-500' : 'bg-gray-300'
               }`}
-              title={online ? 'Online' : 'Offline'}
+              title={online ? t('deviceCard.online') : t('deviceCard.offline')}
             />
-            <span className="text-gray-600">{online ? 'Online' : 'Offline'}</span>
+            <span className="text-gray-600">
+              {online ? t('deviceCard.online') : t('deviceCard.offline')}
+            </span>
           </div>
         </div>
       </div>
@@ -44,7 +55,7 @@ export default function DeviceCard({ device }) {
         disabled={!device.control_url}
         className="mt-4 min-h-[44px] w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
       >
-        {device.control_url ? 'Điều khiển' : 'Thiếu control URL'}
+        {device.control_url ? t('deviceCard.control') : t('deviceCard.missingUrl')}
       </button>
     </article>
   );

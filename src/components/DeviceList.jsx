@@ -1,6 +1,8 @@
 import DeviceCard from './DeviceCard.jsx';
+import { useI18n } from '../i18n/I18nContext.jsx';
 
 export default function DeviceList({ devices, onRescan, loading }) {
+  const { t } = useI18n();
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -28,14 +30,14 @@ export default function DeviceList({ devices, onRescan, loading }) {
             />
           </svg>
         </div>
-        <h2 className="text-lg font-semibold text-gray-900">Không tìm thấy thiết bị</h2>
-        <p className="mt-1 text-sm text-gray-500">Quét mạng LAN hoặc kiểm tra tài khoản / API.</p>
+        <h2 className="text-lg font-semibold text-gray-900">{t('deviceList.emptyTitle')}</h2>
+        <p className="mt-1 text-sm text-gray-500">{t('deviceList.emptyHint')}</p>
         <button
           type="button"
           onClick={onRescan}
           className="mt-6 min-h-[44px] rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
         >
-          Quét lại
+          {t('deviceList.searchAgain')}
         </button>
       </div>
     );
