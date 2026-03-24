@@ -3,6 +3,19 @@
  * Trình duyệt không có API đọc IP trực tiếp; dùng WebRTC ICE (ứng viên host/srflx) để suy ra dải mạng.
  */
 
+const DEFAULT_FALLBACK_SUBNETS = [
+  '192.168.1',
+  '192.168.0',
+  '192.168.137',
+  '192.168.43',
+  '10.0.0',
+  '10.0.1',
+  '10.1.1',
+  '172.16.0',
+  '172.20.10',
+  '169.254.1',
+];
+
 function isPrivateIPv4(ip) {
   const parts = ip.split('.').map((x) => Number(x));
   if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
@@ -14,6 +27,13 @@ function isPrivateIPv4(ip) {
   if (a === 192 && b === 168) return true;
   if (a === 169 && b === 254) return true;
   return false;
+}
+
+function isValidSubnetPrefix(prefix) {
+  if (!/^\d{1,3}(\.\d{1,3}){2}$/.test(prefix)) return false;
+  const parts = prefix.split('.').map((x) => Number(x));
+  if (parts.length !== 3) return false;
+  return parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 255);
 }
 
 function extractIPv4sFromCandidate(candidateStr) {
@@ -100,11 +120,26 @@ function parseEnvSubnets() {
   const raw =
     import.meta.env.VITE_AUTO_SCAN_SUBNETS ||
     import.meta.env.VITE_DEFAULT_LAN_SUBNET ||
-    '192.168.1';
-  return raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+    DEFAULT_FALLBACK_SUBNETS.join(',');
+  return normalizeSubnetPrefixes(raw);
+}
+
+export function normalizeSubnetPrefixes(input) {
+  const chunks = Array.isArray(input) ? input : [input];
+  const out = [];
+  const seen = new Set();
+  for (const chunk of chunks) {
+    const parts = String(chunk ?? '')
+      .split(/[\s,;\n]+/)
+      .map((x) => x.replace(/\.$/, '').trim())
+      .filter(Boolean);
+    for (const prefix of parts) {
+      if (!isValidSubnetPrefix(prefix) || seen.has(prefix)) continue;
+      seen.add(prefix);
+      out.push(prefix);
+    }
+  }
+  return out;
 }
 
 /**

@@ -1,4 +1,5 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.jsx';
 import DeviceList from '../components/DeviceList.jsx';
@@ -7,12 +8,14 @@ import { useI18n } from '../i18n/I18nContext.jsx';
 import {
   getResolvedScanSubnets,
   invalidateScanSubnetCache,
+  normalizeSubnetPrefixes,
 } from '../services/localNetwork.js';
 import { clearSession, getDisplayName, hasAuthSession } from '../services/storage';
 
 export default function DashboardPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const [manualSubnets, setManualSubnets] = useState('');
   const {
     devices,
     loading,
@@ -37,6 +40,16 @@ export default function DashboardPage() {
     if (!hasAuthSession()) return;
     await runLanScanSubnets(subnets, { quiet: false });
   }, [runLanScanSubnets]);
+
+  const handleManualLanScan = useCallback(async () => {
+    if (!hasAuthSession()) return;
+    const subnets = normalizeSubnetPrefixes(manualSubnets);
+    if (subnets.length === 0) {
+      toast.error(t('dashboard.manualSubnetInvalid'));
+      return;
+    }
+    await runLanScanSubnets(subnets, { quiet: false });
+  }, [manualSubnets, runLanScanSubnets, t]);
 
   const logout = () => {
     clearSession();
@@ -76,6 +89,29 @@ export default function DashboardPage() {
                 className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 {t('dashboard.refresh')}
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <p className="mb-2 text-sm font-medium text-gray-800">
+              {t('dashboard.manualSubnetTitle')}
+            </p>
+            <p className="mb-3 text-xs text-gray-500">{t('dashboard.manualSubnetHint')}</p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={manualSubnets}
+                onChange={(e) => setManualSubnets(e.target.value)}
+                placeholder={t('dashboard.manualSubnetPlaceholder')}
+                className="min-h-[44px] w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+              <button
+                type="button"
+                onClick={() => void handleManualLanScan()}
+                disabled={scanning}
+                className="min-h-[44px] rounded-lg border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+              >
+                {t('dashboard.manualScan')}
               </button>
             </div>
           </div>

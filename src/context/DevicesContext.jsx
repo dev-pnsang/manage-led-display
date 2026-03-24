@@ -8,6 +8,7 @@ import {
 } from 'react';
 import toast from 'react-hot-toast';
 import { fetchDevicesFromServer } from '../services/api';
+import { enrichDevicesMissingControlUrl } from '../services/deviceIpEnrichment.js';
 import { t } from '../i18n';
 import { getResolvedScanSubnets } from '../services/localNetwork.js';
 import {
@@ -61,7 +62,10 @@ export function DevicesProvider({ children }) {
 
     if (!hasAuthSession()) return;
 
-    setDevices(base);
+    const withUrls = await enrichDevicesMissingControlUrl(base);
+    if (!hasAuthSession()) return;
+
+    setDevices(withUrls);
     setLastUpdated(new Date());
   }, []);
 

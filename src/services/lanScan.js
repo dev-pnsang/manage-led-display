@@ -4,6 +4,8 @@
  */
 
 const MAX_CONCURRENT = 40;
+const IPV4_RE =
+  /\b(?:(?:25[0-5]|2[0-4]\d|1?\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|1?\d{1,2})\b/g;
 
 function probeTimeoutMs() {
   const n = Number(import.meta.env.VITE_LAN_PROBE_TIMEOUT_MS);
@@ -17,6 +19,41 @@ function hasValidStatusKeys(json) {
     Object.prototype.hasOwnProperty.call(json, 'status_name') ||
     Object.prototype.hasOwnProperty.call(json, 'time')
   );
+}
+
+function extractInterfaceIpsFromStatus(json) {
+  if (!json || typeof json !== 'object') return [];
+  const out = [];
+  const seen = new Set();
+  const push = (x) => {
+    if (typeof x !== 'string') return;
+    const s = x.trim();
+    if (!s) return;
+    const hits = s.match(IPV4_RE) || [];
+    for (const ip of hits) {
+      if (seen.has(ip)) continue;
+      seen.add(ip);
+      out.push(ip);
+    }
+  };
+
+  for (const key of ['ip', 'IP', 'lan_ip', 'host_ip']) {
+    push(json[key]);
+  }
+  const candidates = [json.IPs, json.ips, json.ip_list, json.ipList, json.interfaces];
+  for (const value of candidates) {
+    if (!value) continue;
+    if (Array.isArray(value)) {
+      for (const x of value) {
+        if (typeof x === 'string') push(x);
+        else if (x && typeof x === 'object') push(x.ip || x.IP || x.address);
+      }
+    } else if (typeof value === 'string') {
+      push(value);
+    }
+  }
+
+  return out;
 }
 
 export async function probeDeviceAtIp(ip) {
@@ -48,12 +85,16 @@ export async function probeDeviceAtIp(ip) {
       json.advancedView?.HostName ||
       json.serial ||
       ip;
+    const interfaceIps = extractInterfaceIpsFromStatus(json);
     return {
       id: `lan_${ip}`,
       name: String(name),
       ip,
       control_url: `http://${ip}/`,
       online: true,
+      serial: json.serial != null ? String(json.serial).trim() || undefined : undefined,
+      interface_ips: interfaceIps,
+      interface_count: interfaceIps.length || undefined,
       _source: 'lan',
     };
   } catch {
