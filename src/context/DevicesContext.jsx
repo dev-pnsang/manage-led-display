@@ -10,7 +10,6 @@ import toast from 'react-hot-toast';
 import { fetchDevicesFromServer } from '../services/api';
 import { enrichDevicesMissingControlUrl } from '../services/deviceIpEnrichment.js';
 import { t } from '../i18n';
-import { getResolvedScanSubnets } from '../services/localNetwork.js';
 import {
   getLanDevicesCache,
   getUserData,
@@ -152,17 +151,12 @@ export function DevicesProvider({ children }) {
     void (async () => {
       await refresh();
       if (cancelled || !hasAuthSession()) return;
-      if (import.meta.env.VITE_AUTO_LAN_SCAN !== 'false') {
-        const subnets = await getResolvedScanSubnets();
-        if (cancelled || !hasAuthSession()) return;
-        await runLanScanSubnets(subnets, { quiet: true });
-      }
       if (!cancelled && hasAuthSession()) setInitialDiscoveryComplete(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [refresh, runLanScanSubnets]);
+  }, [refresh]);
 
   useEffect(() => {
     const id = window.setInterval(() => {

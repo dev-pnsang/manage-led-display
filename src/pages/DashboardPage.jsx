@@ -12,6 +12,12 @@ import {
 } from '../services/localNetwork.js';
 import { clearSession, getDisplayName, hasAuthSession } from '../services/storage';
 
+function subnetPrefixFromIp(ip) {
+  const s = String(ip || '').trim();
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(s)) return null;
+  return s.split('.').slice(0, 3).join('.');
+}
+
 export default function DashboardPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -35,11 +41,21 @@ export default function DashboardPage() {
 
   const handleLanScan = useCallback(async () => {
     if (!hasAuthSession()) return;
-    invalidateScanSubnetCache();
-    const subnets = await getResolvedScanSubnets();
+    const fromDeviceIps = [
+      ...new Set(
+        devices
+          .map((d) => subnetPrefixFromIp(d?.ip))
+          .filter(Boolean)
+      ),
+    ];
+    let subnets = fromDeviceIps;
+    if (subnets.length === 0) {
+      invalidateScanSubnetCache();
+      subnets = await getResolvedScanSubnets();
+    }
     if (!hasAuthSession()) return;
     await runLanScanSubnets(subnets, { quiet: false });
-  }, [runLanScanSubnets]);
+  }, [devices, runLanScanSubnets]);
 
   const handleManualLanScan = useCallback(async () => {
     if (!hasAuthSession()) return;

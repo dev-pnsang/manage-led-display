@@ -9,7 +9,8 @@ const IPV4_RE =
 
 function probeTimeoutMs() {
   const n = Number(import.meta.env.VITE_LAN_PROBE_TIMEOUT_MS);
-  return Number.isFinite(n) && n >= 500 && n <= 30000 ? n : 3000;
+  // Thiết bị có thể lag nên mặc định cao hơn; vẫn cho phép cấu hình qua env.
+  return Number.isFinite(n) && n >= 500 && n <= 60000 ? n : 15000;
 }
 
 function hasValidStatusKeys(json) {
